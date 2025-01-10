@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Real-Time Location Tracker</title>
+  <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"
+   integrity="sha384-mkQ3/7FUtcGyoppY6bz/PORYoGqOl7/aSUMn2ymDOJcapfS6PHqxhRTMh1RR0Q6+" 
+   crossorigin="anonymous"></script>
+  <script
+    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDxp8MamOh_0gBNHBq4m3bgCIgksc4YYgQ"
+    async
+  ></script>
+  <style>
+    #map {
+      height: 100vh;
+      width: 100%;
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+
+  <script>
+    const socket = io();
+    let map;
+    const markers = {};
+
+    // Initialize Google Map dynamically based on user's location
+    function initMap() {
+      if (navigator.geolocation) {
+        navigator.geolocation.watchPosition(
+          (position) => {
+            const { latitude, longitude } = position.coords;
+
+            // Center the map at the user's location
+            if (!map) {
+              map = new google.maps.Map(document.getElementById('map'), {
+                center: { lat: latitude, lng: longitude },
+                zoom: 10,
+              });
+            } else {
+              map.setCenter({ lat: latitude, lng: longitude });
+            }
+
+            // Add or update marker for the user's location
+            if (!markers['user']) {
+              markers['user'] = new google.maps.Marker({
+                position: { lat: latitude, lng: longitude },
+                map: map,
+                title: 'Your Location',
+              });
+            } else {
+              markers['user'].setPosition({ lat: latitude, lng: longitude });
+            }
+
+            // Send user's updated location to the server
+            socket.emit('locationUpdate', { latitude, longitude });
+          },
+          (error) => {
+            console.error('Error fetching location:', error);
+            alert('Unable to fetch location. Please enable GPS.');
+
+            // Fallback map initialization
+            if (!map) {
+              map = new google.maps.Map(document.getElementById('map'), {
+                center: { lat: 0, lng: 0 },
+                zoom: 2,
+              });
+            }
+          },
+          { enableHighAccuracy: true, maximumAge: 10000, timeout: 5000 }
+        );
+      } else {
+        alert('Geolocation is not supported by this browser.');
+        map = new google.maps.Map(document.getElementById('map'), {
+          center: { lat: 0, lng: 0 },
+          zoom: 2,
+        });
+      }
+
+      // Update the map with all client locations
+      socket.on('allLocations', (locations) => {
+        Object.keys(locations).forEach((id) => {
+          const { latitude, longitude } = locations[id];
+
+          // Add or update markers
+          if (!markers[id]) {
+            markers[id] = new google.maps.Marker({
+              position: { lat: latitude, lng: longitude },
+              map: map,
+              label: id.substring(0, 4), // Shortened socket ID as label
+            });
+          } else {
+            markers[id].setPosition({ lat: latitude, lng: longitude });
+          }
+        });
+
+        // Remove markers for disconnected clients
+        Object.keys(markers).forEach((id) => {
+          if (!locations[id]) {
+            markers[id].setMap(null); // Remove marker from the map
+            delete markers[id];
+          }
+        });
+      });
+    }
+
+    // Wait for the page to load before initializing the map
+    window.onload = initMap;
+  </script>
+</body>
+</html>
