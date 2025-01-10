@@ -1,50 +1,44 @@
-const express = require('express');
-const http = require('http');
-const { Server } = require('socket.io');
+const express = require("express");
+const http = require("http");
+const socketio = require("socket.io");
+const cors = require("cors");
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server);
-
-// Serve static files and set EJS as the view engine
-app.set('view engine', 'ejs');
-app.use(express.static('public'));
-
-// Serve the main page
-app.get('/', (req, res) => {
-  res.render('index2');
+const io = socketio(server, {
+  cors: {
+    origin: "http://localhost:3000", 
+    methods: ["GET", "POST"],
+  },
 });
 
-// Store client locations
-const clients = {};
 
-// WebSocket connection handling
-io.on('connection', (socket) => {
-  console.log(`Client connected: ${socket.id}`);
+app.use(cors()); 
 
-  // Broadcast current locations to all clients
-  io.emit('allLocations', clients);
 
-  // Update location of a client
-  socket.on('locationUpdate', (location) => {
-    // Save the client's location
-    clients[socket.id] = location;
-    console.log(`Location from ${socket.id}: Latitude = ${location.latitude}, Longitude = ${location.longitude}`);
+io.on("connection", (socket) => {
+  console.log("A user connected:", socket.id);
 
-    // Broadcast updated locations to all clients
-    io.emit('allLocations', clients);
+
+  socket.on("client_location_send", (data) => {
+    console.log(`Received location from ${socket.id}:`, data);
+    io.emit("update-users", { id: socket.id, ...data }); 
   });
 
-  // Handle client disconnect
-  socket.on('disconnect', () => {
-    console.log(`Client disconnected: ${socket.id}`);
-    delete clients[socket.id]; // Remove client from the list
-    io.emit('allLocations', clients); // Notify other clients
+
+  socket.on("disconnect", () => {
+    console.log("User disconnected:", socket.id);
+    io.emit("user-disconnected", socket.id); 
   });
 });
 
-// Start the server
-const PORT = 3000;
+
+app.get("/", (req, res) => {
+  res.send("Socket.IO Server is running.");
+});
+
+
+const PORT = 4000;
 server.listen(PORT, () => {
-  console.log(`Server running at http://localhost:${PORT}`);
+  console.log(`Server running on http://localhost:${PORT}`);
 });
