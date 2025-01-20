@@ -8,7 +8,7 @@ const app = express();
 const server = http.createServer(app);
 const io = socketio(server, {
   cors: {
-    origin: "https://cool-daffodil-899754.netlify.app", // Your frontend URL
+    origin: "*", // Allow all origins for testing
     methods: ["GET", "POST"],
   },
 });
