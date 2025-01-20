@@ -8,7 +8,7 @@ const app = express();
 const server = http.createServer(app);
 const io = socketio(server, {
   cors: {
-    origin: "http://localhost:3000", // Update with your frontend URL
+    origin: "https://cool-daffodil-899754.netlify.app", // Your frontend URL
     methods: ["GET", "POST"],
   },
 });
