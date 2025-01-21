@@ -1,28 +1,25 @@
-const express = require("express"); // Express for creating API
-const http = require("http"); // HTTP server
-const socketio = require("socket.io"); // WebSocket connections
-const cors = require("cors"); // CORS policy handling
+const express = require("express");
+const http = require("http");
+const socketio = require("socket.io");
+const cors = require("cors");
 
-const app = express(); // Create Express app
-const server = http.createServer(app); // Create HTTP server
+const app = express();
+const server = http.createServer(app);
 const io = socketio(server, {
   cors: {
-    origin: "*", // Allow all frontends (limit if needed)
-    methods: ["GET", "POST"], // Allow only GET and POST methods
+    origin: "*",
+    methods: ["GET", "POST"],
   },
 });
 
-app.use(cors()); // Enable CORS
+app.use(cors());
 
-// WebSocket connection
 io.on("connection", (socket) => {
   console.log("Client connected:", socket.id);
 
-  // Receive location data from client
   socket.on("client_location_send", (data) => {
     console.log(`Location received from ${socket.id}:`, data);
 
-    // Broadcast location data to all connected clients
     if (data.latitude && data.longitude) {
       io.emit("update-users", { id: socket.id, ...data });
     } else {
@@ -30,19 +27,16 @@ io.on("connection", (socket) => {
     }
   });
 
-  // Handle client disconnect
   socket.on("disconnect", () => {
     console.log("Client disconnected:", socket.id);
-    io.emit("user-disconnected", socket.id); // Notify all clients
+    io.emit("user-disconnected", socket.id);
   });
 });
 
-// API endpoint for testing
 app.get("/", (req, res) => {
   res.send("Socket.IO server is running.");
 });
 
-// Start the server
 const PORT = process.env.PORT || 4000;
 server.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
