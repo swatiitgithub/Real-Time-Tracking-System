@@ -2,66 +2,54 @@ const express = require("express");
 const http = require("http");
 const socketio = require("socket.io");
 const cors = require("cors");
+const axios = require("axios");
 
 const app = express();
 const server = http.createServer(app);
 const io = socketio(server, {
   cors: {
-    origin: "*", // सभी डोमेन से अनुरोध स्वीकार करें (डेवलपमेंट के लिए)
+    origin: "https://cool-daffodil-899754.netlify.app", // Your frontend URL on Netlify
     methods: ["GET", "POST"],
   },
 });
 
-// Middleware
 app.use(cors());
-app.use(express.json()); // JSON डेटा को पार्स करने के लिए
 
-// Users का डेटा स्टोर करने के लिए
-let users = {};
+// Route to fetch tower data
+app.get("/towers", async (req, res) => {
+  try {
+    const response = await axios.get('https://www.opencellid.org/cell/getInArea?key=pk.de130c4c2ee76f8ba1e290ae8834ca0e&BBOX=52.0,21.0,52.5,21.5&mcc=260&mnc=2&lac=45070');
+    const data = response.data;
+    res.json(data); // Send tower data to the client
+  } catch (error) {
+    console.error("Error fetching tower data:", error);
+    res.status(500).json({ error: "Unable to fetch tower data" });
+  }
+});
 
-// Socket.IO कनेक्शन सेटअप
+// Socket.IO connection for real-time location sharing
 io.on("connection", (socket) => {
-  console.log("User connected:", socket.id);
+  console.log("A user connected:", socket.id);
 
-  // Client से लोकेशन प्राप्त करना
   socket.on("client_location_send", (data) => {
-    const { latitude, longitude, networkDetails } = data;
-
-    if (latitude && longitude && networkDetails) {
-      // User का डेटा स्टोर करें
-      users[socket.id] = { latitude, longitude, networkDetails };
-      console.log(`User ${socket.id} Location Updated:`, users[socket.id]);
-
-      // सभी क्लाइंट्स को अपडेट भेजें
-      io.emit("update-users", users);
+    console.log(`Received location from ${socket.id}:`, data);
+    if (data.latitude && data.longitude) {
+      io.emit("update-users", { id: socket.id, ...data });
     } else {
-      console.error("Invalid data received from client:", data);
+      console.error("Invalid location data received", data);
     }
   });
 
-  // डिसकनेक्ट इवेंट
   socket.on("disconnect", () => {
     console.log("User disconnected:", socket.id);
-
-    // User का डेटा हटाएं
-    delete users[socket.id];
-
-    // सभी क्लाइंट्स को अपडेट भेजें
-    io.emit("update-users", users);
+    io.emit("user-disconnected", socket.id);
   });
 });
 
-// GET API: उपयोगकर्ताओं का रीयल-टाइम डेटा
-app.get("/users", (req, res) => {
-  res.json(users);
-});
-
-// Default Route
 app.get("/", (req, res) => {
-  res.send("Real-Time User Tracking Server is running.");
+  res.send("Socket.IO Server is running.");
 });
 
-// Server शुरू करें
 const PORT = process.env.PORT || 4000;
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
