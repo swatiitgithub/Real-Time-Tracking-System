@@ -2,7 +2,6 @@ const express = require("express");
 const http = require("http");
 const socketio = require("socket.io");
 const cors = require("cors");
-const axios = require("axios");
 
 const app = express();
 const server = http.createServer(app);
@@ -13,43 +12,56 @@ const io = socketio(server, {
   },
 });
 
+// Middleware
 app.use(cors());
+app.use(express.json()); // JSON डेटा को पार्स करने के लिए
 
-// Route to fetch tower data
-app.get("/towers", async (req, res) => {
-  try {
-    const response = await axios.get('https://www.opencellid.org/cell/getInArea?key=pk.de130c4c2ee76f8ba1e290ae8834ca0e&BBOX=52.0,21.0,52.5,21.5&mcc=260&mnc=2&lac=45070');
-    const data = response.data;
-    res.json(data); // Send tower data to the client
-  } catch (error) {
-    console.error("Error fetching tower data:", error);
-    res.status(500).json({ error: "Unable to fetch tower data" });
-  }
-});
+// Users का डेटा स्टोर करने के लिए
+let users = {};
 
-// Socket.IO connection for real-time location sharing
+// Socket.IO कनेक्शन सेटअप
 io.on("connection", (socket) => {
-  console.log("A user connected:", socket.id);
+  console.log("User connected:", socket.id);
 
+  // Client से लोकेशन प्राप्त करना
   socket.on("client_location_send", (data) => {
-    console.log(`Received location from ${socket.id}:`, data);
-    if (data.latitude && data.longitude) {
-      io.emit("update-users", { id: socket.id, ...data });
+    const { latitude, longitude, networkDetails } = data;
+
+    if (latitude && longitude && networkDetails) {
+      // User का डेटा स्टोर करें
+      users[socket.id] = { latitude, longitude, networkDetails };
+      console.log(`User ${socket.id} Location Updated:`, users[socket.id]);
+
+      // सभी क्लाइंट्स को अपडेट भेजें
+      io.emit("update-users", users);
     } else {
-      console.error("Invalid location data received", data);
+      console.error("Invalid data received from client:", data);
     }
   });
 
+  // डिसकनेक्ट इवेंट
   socket.on("disconnect", () => {
     console.log("User disconnected:", socket.id);
-    io.emit("user-disconnected", socket.id);
+
+    // User का डेटा हटाएं
+    delete users[socket.id];
+
+    // सभी क्लाइंट्स को अपडेट भेजें
+    io.emit("update-users", users);
   });
 });
 
-app.get("/", (req, res) => {
-  res.send("Socket.IO Server is running.");
+// GET API: उपयोगकर्ताओं का रीयल-टाइम डेटा
+app.get("/users", (req, res) => {
+  res.json(users);
 });
 
+// Default Route
+app.get("/", (req, res) => {
+  res.send("Real-Time User Tracking Server is running.");
+});
+
+// Server शुरू करें
 const PORT = process.env.PORT || 4000;
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
