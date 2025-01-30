@@ -13,8 +13,9 @@
     "ejs": "^3.1.10",
     "express": "^4.21.2",
     "geoip-lite": "^1.4.10",
-    "node-fetch": "^3.3.2",
+    "node-fetch": "^2.7.0",
     "nodemon": "^3.1.9",
-    "socket.io": "^4.8.1"
+    "socket.io": "^4.8.1",
+    "uuid": "^11.0.5"
   }
 }
